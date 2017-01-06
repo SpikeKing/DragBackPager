@@ -20,18 +20,25 @@ public class DragBackHelper {
     private DragBackLayout mDragBackLayout;
 
     public DragBackHelper(@NonNull Activity activity) {
-        mActivity = activity;
+        mActivity = activity; // 添加Activity参数
     }
 
-    @SuppressWarnings("deprecation")
+    /**
+     * 在Activity的onCreate时, 优先执行
+     */
     public void onActivityCreate() {
+        // 设置Window的背景图片透明
         mActivity.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        mActivity.getWindow().getDecorView().setBackgroundDrawable(null);
+        // 删除DecorView的背景
+        mActivity.getWindow().getDecorView().setBackground(null);
 
-        final ViewGroup vg = null;
-        mDragBackLayout = (DragBackLayout)
-                LayoutInflater.from(mActivity).inflate(R.layout.drag_back_layout, vg);
+        final ViewGroup vg = null; // 布局组件
 
+        // 获取DragBack的填充布局
+        mDragBackLayout = (DragBackLayout) LayoutInflater
+                .from(mActivity).inflate(R.layout.drag_back_layout, vg);
+
+        // 添加滑动监听器
         mDragBackLayout.addDragListener(new DragBackLayout.DragListener() {
             @Override
             public void onScrollStateChange(int state, float scrollPercent) {
@@ -39,12 +46,12 @@ public class DragBackHelper {
 
             @Override
             public void onEdgeTouch(int edgeFlag) {
+                // 每次触摸屏幕边界时, 使当前Activity变为透明
                 Utils.convertActivityToTranslucent(mActivity);
             }
 
             @Override
             public void onScrollOverThreshold() {
-
             }
         });
     }
@@ -53,6 +60,7 @@ public class DragBackHelper {
      * DragBackLayout依附于Activity
      */
     public void onPostCreate() {
+        // 将DragBackLayout加入DecorView与ContentView之间, 并设置ContentView为DecorView.
         mDragBackLayout.attachToActivity(mActivity);
     }
 
@@ -64,6 +72,7 @@ public class DragBackHelper {
      */
     public View findViewById(int id) {
         if (mDragBackLayout != null) {
+            // findViewById不是直接ContentView, 而是在DragBackLayout中寻找.
             return mDragBackLayout.findViewById(id);
         }
         return null;

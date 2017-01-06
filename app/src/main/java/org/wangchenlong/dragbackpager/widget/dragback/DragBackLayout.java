@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 后退的布局样式, 继承于FrameLayout
+ * 后退的布局样式, 类型ViewGroup, 继承于FrameLayout
  */
 public class DragBackLayout extends FrameLayout {
     /**
@@ -472,7 +472,13 @@ public class DragBackLayout extends FrameLayout {
         }
     }
 
-    // 依附于Activity
+    /**
+     * 依附于当前的Activity, 在DecorView与当前布局之间, 添加DragBackLayout
+     * 并设置ContentView为DragBackLayout
+     * 供{@link DragBackHelper}调用
+     *
+     * @param activity 当前页面
+     */
     public void attachToActivity(Activity activity) {
         mActivity = activity;
         TypedArray a = activity.getTheme().obtainStyledAttributes(new int[]{
@@ -484,6 +490,7 @@ public class DragBackLayout extends FrameLayout {
         ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
         ViewGroup decorChild = (ViewGroup) decor.getChildAt(0);
         decorChild.setBackgroundResource(background);
+
         decor.removeView(decorChild);
         addView(decorChild);
         setContentView(decorChild);

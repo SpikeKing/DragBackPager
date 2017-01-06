@@ -46,9 +46,6 @@ public class MainActivity extends DragBackActivity {
         getDragBackLayout().addDragListener(new DragBackLayout.DragListener() {
             @Override
             public void onScrollStateChange(int state, float scrollPercent) {
-                if (state == DragBackLayout.STATE_SETTLING) {
-                    NUM--; // 关闭NUM-1
-                }
             }
 
             @Override
