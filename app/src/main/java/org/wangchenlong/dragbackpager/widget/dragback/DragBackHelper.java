@@ -39,7 +39,7 @@ public class DragBackHelper {
                 .from(mActivity).inflate(R.layout.drag_back_layout, vg);
 
         // 添加滑动监听器
-        mDragBackLayout.addDragListener(new DragBackLayout.DragListener() {
+        mDragBackLayout.addDragBackListener(new DragBackLayout.DragBackListener() {
             @Override
             public void onScrollStateChange(int state, float scrollPercent) {
             }

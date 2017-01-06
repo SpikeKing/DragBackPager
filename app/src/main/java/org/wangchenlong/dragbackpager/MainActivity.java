@@ -43,7 +43,7 @@ public class MainActivity extends DragBackActivity {
             ab.setTitle(String.valueOf("Page No. " + NUM));
         }
 
-        getDragBackLayout().addDragListener(new DragBackLayout.DragListener() {
+        getDragBackLayout().addDragBackListener(new DragBackLayout.DragBackListener() {
             @Override
             public void onScrollStateChange(int state, float scrollPercent) {
             }

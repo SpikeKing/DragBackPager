@@ -34,8 +34,13 @@ import java.util.Arrays;
  * ViewDragHelper is a utility class for writing custom ViewGroups. It offers a
  * number of useful operations and state tracking for allowing a user to drag
  * and reposition views within their parent ViewGroup.
+ * 来源于SupportV4的ViewDragHelper, 额外添加
+ * setEdgeSize, 滑动边界
+ * setMaxVelocity, 设置最大速度
+ * setSensitivity, 设置敏感度, 即mTouchSlop
  */
 public class ViewDragHelper {
+
     private static final String TAG = "ViewDragHelper";
 
     /**

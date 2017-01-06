@@ -5,6 +5,7 @@ package org.wangchenlong.dragbackpager.widget.dragback;
  *
  * @author C.L. Wang
  */
+@SuppressWarnings("unused")
 public interface DragBackInterface {
     /**
      * 获取滑动后退的顶层布局, 因为实现手势功能, 所以改变顶层布局

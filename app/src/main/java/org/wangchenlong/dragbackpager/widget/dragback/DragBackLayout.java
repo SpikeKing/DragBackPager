@@ -6,6 +6,7 @@ import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.support.annotation.DrawableRes;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -22,109 +23,50 @@ import java.util.List;
  * 后退的布局样式, 类型ViewGroup, 继承于FrameLayout
  */
 public class DragBackLayout extends FrameLayout {
-    /**
-     * Minimum velocity that will be detected as a fling
-     */
-    private static final int MIN_FLING_VELOCITY = 400; // dips per second
 
+    private static final int MIN_FLING_VELOCITY = 400; // 滑动页面的最小速度, DP每秒.
     private static final int DEFAULT_SCRIM_COLOR = 0x99000000;
+    private static final int FULL_ALPHA = 255; // 背景的全亮alpha值
 
-    private static final int FULL_ALPHA = 255;
+    public static final int EDGE_LEFT = ViewDragHelper.EDGE_LEFT;   // 检测左侧滑动, 执行退出
+    public static final int EDGE_RIGHT = ViewDragHelper.EDGE_RIGHT; // 检测右侧滑动, 执行退出
+    public static final int EDGE_BOTTOM = ViewDragHelper.EDGE_BOTTOM; // 检测底部滑动, 执行退出
+    public static final int EDGE_ALL = EDGE_LEFT | EDGE_RIGHT | EDGE_BOTTOM; // 检测全部滑动, 执行退出
 
-    /**
-     * Edge flag indicating that the left edge should be affected.
-     */
-    public static final int EDGE_LEFT = ViewDragHelper.EDGE_LEFT;
 
-    /**
-     * Edge flag indicating that the right edge should be affected.
-     */
-    public static final int EDGE_RIGHT = ViewDragHelper.EDGE_RIGHT;
+    public static final int STATE_IDLE = ViewDragHelper.STATE_IDLE; // View的闲置状态, 未被拖拉和显示动画
+    public static final int STATE_DRAGGING = ViewDragHelper.STATE_DRAGGING; // 用户正在拖动或模拟拖动
+    public static final int STATE_SETTLING = ViewDragHelper.STATE_SETTLING; // 被设置入位置
 
-    /**
-     * Edge flag indicating that the bottom edge should be affected.
-     */
-    public static final int EDGE_BOTTOM = ViewDragHelper.EDGE_BOTTOM;
+    private static final float DEFAULT_SCROLL_THRESHOLD = 0.35f; // 默认滑动的默认阈值, 当超过时自动滑动关闭
+    private static final int OVERSCROLL_DISTANCE = 10; // 超出滑动距离
 
-    /**
-     * Edge flag set indicating all edges should be affected.
-     */
-    public static final int EDGE_ALL = EDGE_LEFT | EDGE_RIGHT | EDGE_BOTTOM;
-
-    /**
-     * A view is not currently being dragged or animating as a result of a
-     * fling/snap.
-     */
-    public static final int STATE_IDLE = ViewDragHelper.STATE_IDLE;
-
-    /**
-     * A view is currently being dragged. The position is currently changing as
-     * a result of user input or simulated user input.
-     */
-    public static final int STATE_DRAGGING = ViewDragHelper.STATE_DRAGGING;
-
-    /**
-     * A view is currently settling into place as a result of a fling or
-     * predefined non-interactive motion.
-     */
-    public static final int STATE_SETTLING = ViewDragHelper.STATE_SETTLING;
-
-    /**
-     * Default threshold of scroll
-     */
-    private static final float DEFAULT_SCROLL_THRESHOLD = 0.3f;
-
-    private static final int OVERSCROLL_DISTANCE = 10;
-
-    private static final int[] EDGE_FLAGS = {
+    private static final int[] EDGE_FLAGS = { // 四种滑动样式
             EDGE_LEFT, EDGE_RIGHT, EDGE_BOTTOM, EDGE_ALL
     };
 
     private int mEdgeFlag;
-
-    /**
-     * Threshold of scroll, we will close the activity, when scrollPercent over
-     * this value;
-     */
-    private float mScrollThreshold = DEFAULT_SCROLL_THRESHOLD;
+    private float mScrollThreshold = DEFAULT_SCROLL_THRESHOLD; // 滑动阈值, 当超过时自动滑动关闭
+    private boolean mEnable = true; // 是否启动滑动状态
 
     private Activity mActivity;
-
-    private boolean mEnable = true;
-
     private View mContentView;
-
     private ViewDragHelper mDragHelper;
-
     private float mScrollPercent;
-
     private int mContentLeft;
-
     private int mContentTop;
 
-    /**
-     * The set of listeners to be sent events through.
-     */
-    private List<DragListener> mListeners;
+    private List<DragBackListener> mListeners; // 所有设置滑动的监听器
 
     private Drawable mShadowLeft;
-
     private Drawable mShadowRight;
-
     private Drawable mShadowBottom;
 
-    private float mScrimOpacity;
-
+    private float mScrimOpacity; // 滑动的透明度, 会随着滑动大小, 越大越亮
     private int mScrimColor = DEFAULT_SCRIM_COLOR;
-
     private boolean mInLayout;
-
     private Rect mTmpRect = new Rect();
-
-    /**
-     * Edge being dragged
-     */
-    private int mTrackingEdge;
+    private int mTrackingEdge; // 边界追踪标记, 下左右
 
     public DragBackLayout(Context context) {
         this(context, null);
@@ -174,18 +116,20 @@ public class DragBackLayout extends FrameLayout {
     }
 
     /**
-     * Sets the sensitivity of the NavigationLayout.
+     * 设置滑动布局的敏感性, 即最小监听距离TouchSlop, 可以不设置
      *
-     * @param context     The application context.
-     * @param sensitivity value between 0 and 1, the final value for touchSlop =
+     * @param context     上下文
+     * @param sensitivity 值在(0~1]之间, 最终会控制滑动间距TouchSlop =
      *                    ViewConfiguration.getScaledTouchSlop * (1 / s);
      */
+    @SuppressWarnings("unused")
     public void setSensitivity(Context context, float sensitivity) {
         mDragHelper.setSensitivity(context, sensitivity);
     }
 
     /**
-     * 设置ContentView, 支持用户手势删除
+     * 设置ContentView, 支持用户手势删除, 以前的ContentView被DragBackLayout取代.
+     * ContentView成为DragBackLayout的ChildView
      *
      * @param view 视图
      */
@@ -203,115 +147,104 @@ public class DragBackLayout extends FrameLayout {
     }
 
     /**
-     * Enable edge tracking for the selected edges of the parent view. The
-     * callback's
-     * {@link ViewDragHelper.Callback#onEdgeTouched(int, int)}
-     * and
-     * {@link ViewDragHelper.Callback#onEdgeDragStarted(int, int)}
-     * methods will only be invoked for edges for which edge tracking has been
-     * enabled.
+     * 设置滑动模式, 不同的滑动模式退出方式不同
      *
-     * @param edgeFlags Combination of edge flags describing the edges to watch
-     * @see #EDGE_LEFT
-     * @see #EDGE_RIGHT
-     * @see #EDGE_BOTTOM
+     * @param edgeFlags 滑动模式
      */
     public void setEdgeTrackingEnabled(int edgeFlags) {
         mEdgeFlag = edgeFlags;
+        // 设置监听的拖拽方向
         mDragHelper.setEdgeTrackingEnabled(mEdgeFlag);
     }
 
     /**
-     * Set a color to use for the scrim that obscures primary content while a
-     * drawer is open.
+     * 设置底部模糊的背景颜色
      *
-     * @param color Color to use in 0xAARRGGBB format.
+     * @param color 颜色
      */
     public void setScrimColor(int color) {
         mScrimColor = color;
         invalidate();
     }
 
+
     /**
-     * Set the size of an edge. This is the range in pixels along the edges of
-     * this view that will actively detect edge touches or drags if edge
-     * tracking is enabled.
+     * 设置边界距离, 在距离内滑动时, 才会触发后退效果
      *
-     * @param size The size of an edge in pixels
+     * @param size 边界距离
      */
     public void setEdgeSize(int size) {
         mDragHelper.setEdgeSize(size);
     }
 
     /**
-     * Register a callback to be invoked when a drag event is sent to this
-     * view.
+     * 设置滑动回调, 当滑动时, 触发
      *
-     * @param listener the drag listener to attach to this view
-     * @deprecated use {@link #addDragListener} instead
+     * @param listener 监听器
+     * @deprecated 使用替换{@link #addDragBackListener}
      */
     @Deprecated
-    public void setDragListener(DragListener listener) {
-        addDragListener(listener);
+    public void setDragBackListener(DragBackListener listener) {
+        addDragBackListener(listener);
     }
 
     /**
-     * Add a callback to be invoked when a drag event is sent to this view.
+     * 添加滑动回调, 当滑动时, 触发, 支持添加多个
      *
-     * @param listener the drag listener to attach to this view
+     * @param listener 监听器
      */
-    public void addDragListener(DragListener listener) {
+    public void addDragBackListener(DragBackListener listener) {
         if (mListeners == null) {
-            mListeners = new ArrayList<DragListener>();
+            mListeners = new ArrayList<>();
         }
         mListeners.add(listener);
     }
 
     /**
-     * Removes a listener from the set of listeners
+     * 删除滑动回调
      *
-     * @param listener
+     * @param listener 监听器
      */
-    public void removeDragListener(DragListener listener) {
+    public void removeDragBackListener(DragBackListener listener) {
         if (mListeners == null) {
             return;
         }
         mListeners.remove(listener);
     }
 
-    public static interface DragListener {
+    public interface DragBackListener {
+
         /**
-         * Invoke when state change
+         * 当状态改变时调用
          *
-         * @param state         flag to describe scroll state
-         * @param scrollPercent scroll percent of this view
+         * @param state         状态
+         * @param scrollPercent 滑动当前视图的百分比
          * @see #STATE_IDLE
          * @see #STATE_DRAGGING
          * @see #STATE_SETTLING
          */
-        public void onScrollStateChange(int state, float scrollPercent);
+        void onScrollStateChange(int state, float scrollPercent);
 
         /**
-         * Invoke when edge touched
+         * 当边界被触摸时调用
          *
-         * @param edgeFlag edge flag describing the edge being touched
+         * @param edgeFlag 边界标记
          * @see #EDGE_LEFT
          * @see #EDGE_RIGHT
          * @see #EDGE_BOTTOM
          */
-        public void onEdgeTouch(int edgeFlag);
+        void onEdgeTouch(int edgeFlag);
 
         /**
-         * Invoke when scroll percent over the threshold for the first time
+         * 当滑动百分比超过阈值时, 触发自动滑动
          */
-        public void onScrollOverThreshold();
+        void onScrollOverThreshold();
     }
 
     /**
-     * Set scroll threshold, we will close the activity, when scrollPercent over
-     * this value
+     * 设置滑动关闭阈值, 当超过这个阈值时, 页面自动关闭, 默认值{@link #DEFAULT_SCROLL_THRESHOLD}.
      *
-     * @param threshold
+     * @param threshold 阈值
      */
     public void setScrollThresHold(float threshold) {
         if (threshold >= 1.0f || threshold <= 0) {
@@ -321,13 +254,10 @@ public class DragBackLayout extends FrameLayout {
     }
 
     /**
-     * Set a drawable used for edge shadow.
+     * 设置边界阴影图片
      *
-     * @param shadow   Drawable to use
-     * @param edgeFlag Combination of edge flags describing the edge to set
-     * @see #EDGE_LEFT
-     * @see #EDGE_RIGHT
-     * @see #EDGE_BOTTOM
+     * @param shadow   阴影图片
+     * @param edgeFlag 滑动模式
      */
     public void setShadow(Drawable shadow, int edgeFlag) {
         if ((edgeFlag & EDGE_LEFT) != 0) {
@@ -341,20 +271,17 @@ public class DragBackLayout extends FrameLayout {
     }
 
     /**
-     * Set a drawable used for edge shadow.
+     * 设置边界阴影资源
      *
-     * @param resId    Resource of drawable to use
-     * @param edgeFlag Combination of edge flags describing the edge to set
-     * @see #EDGE_LEFT
-     * @see #EDGE_RIGHT
-     * @see #EDGE_BOTTOM
+     * @param resId    图片资源
+     * @param edgeFlag 滑动模式
      */
-    public void setShadow(int resId, int edgeFlag) {
+    public void setShadow(@DrawableRes int resId, int edgeFlag) {
         setShadow(getResources().getDrawable(resId), edgeFlag);
     }
 
     /**
-     * Scroll out contentView and finish the activity
+     * 滑动当前页面, 并关闭Activity
      */
     public void scrollToFinishActivity() {
         final int childWidth = mContentView.getWidth();
@@ -418,13 +345,14 @@ public class DragBackLayout extends FrameLayout {
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-        final boolean drawContent = child == mContentView;
+        final boolean drawContent = child == mContentView; // 当前页面
 
         boolean ret = super.drawChild(canvas, child, drawingTime);
+
         if (mScrimOpacity > 0 && drawContent
                 && mDragHelper.getViewDragState() != ViewDragHelper.STATE_IDLE) {
             drawShadow(canvas, child);
-            drawScrim(canvas, child);
+            drawScrim(canvas, child); // 绘制蒙版
         }
         return ret;
     }
@@ -505,12 +433,15 @@ public class DragBackLayout extends FrameLayout {
         }
     }
 
+    /**
+     * 供DragHelper调用的Callback
+     */
     private class ViewDragCallback extends ViewDragHelper.Callback {
         private boolean mIsScrollOverValid;
 
         @Override
         public boolean tryCaptureView(View view, int i) {
-            boolean ret = mDragHelper.isEdgeTouched(mEdgeFlag, i);
+            boolean ret = mDragHelper.isEdgeTouched(mEdgeFlag, i); // 正确的边界
             if (ret) {
                 if (mDragHelper.isEdgeTouched(EDGE_LEFT, i)) {
                     mTrackingEdge = EDGE_LEFT;
@@ -520,7 +451,7 @@ public class DragBackLayout extends FrameLayout {
                     mTrackingEdge = EDGE_BOTTOM;
                 }
                 if (mListeners != null && !mListeners.isEmpty()) {
-                    for (DragListener listener : mListeners) {
+                    for (DragBackListener listener : mListeners) {
                         listener.onEdgeTouch(mTrackingEdge);
                     }
                 }
@@ -530,22 +461,21 @@ public class DragBackLayout extends FrameLayout {
             if (mEdgeFlag == EDGE_LEFT || mEdgeFlag == EDGE_RIGHT) {
                 directionCheck = !mDragHelper.checkTouchSlop(ViewDragHelper.DIRECTION_VERTICAL, i);
             } else if (mEdgeFlag == EDGE_BOTTOM) {
-                directionCheck = !mDragHelper
-                        .checkTouchSlop(ViewDragHelper.DIRECTION_HORIZONTAL, i);
+                directionCheck = !mDragHelper.checkTouchSlop(ViewDragHelper.DIRECTION_HORIZONTAL, i);
             } else if (mEdgeFlag == EDGE_ALL) {
                 directionCheck = true;
             }
-            return ret & directionCheck;
+            return ret & directionCheck; // 正确的边界与屏幕方向正确
         }
 
         @Override
         public int getViewHorizontalDragRange(View child) {
-            return mEdgeFlag & (EDGE_LEFT | EDGE_RIGHT);
+            return mEdgeFlag & (EDGE_LEFT | EDGE_RIGHT); // 水平
         }
 
         @Override
         public int getViewVerticalDragRange(View child) {
-            return mEdgeFlag & EDGE_BOTTOM;
+            return mEdgeFlag & EDGE_BOTTOM; // 竖直
         }
 
         @Override
@@ -571,11 +501,12 @@ public class DragBackLayout extends FrameLayout {
                     && mDragHelper.getViewDragState() == STATE_DRAGGING
                     && mScrollPercent >= mScrollThreshold && mIsScrollOverValid) {
                 mIsScrollOverValid = false;
-                for (DragListener listener : mListeners) {
+                for (DragBackListener listener : mListeners) {
                     listener.onScrollOverThreshold();
                 }
             }
 
+            // 滚动百分比大于1时, 关闭当前Activity, 屏蔽动画
             if (mScrollPercent >= 1) {
                 if (!mActivity.isFinishing()) {
                     mActivity.finish();
@@ -586,6 +517,7 @@ public class DragBackLayout extends FrameLayout {
 
         @Override
         public void onViewReleased(View releasedChild, float xvel, float yvel) {
+            // 当滑动一部分中途取消时, 恢复当前视图
             final int childWidth = releasedChild.getWidth();
             final int childHeight = releasedChild.getHeight();
 
@@ -607,6 +539,7 @@ public class DragBackLayout extends FrameLayout {
 
         @Override
         public int clampViewPositionHorizontal(View child, int left, int dx) {
+            // 固定在水平位置的回调
             int ret = 0;
             if ((mTrackingEdge & EDGE_LEFT) != 0) {
                 ret = Math.min(child.getWidth(), Math.max(left, 0));
@@ -618,6 +551,7 @@ public class DragBackLayout extends FrameLayout {
 
         @Override
         public int clampViewPositionVertical(View child, int top, int dy) {
+            // 固定在竖直位置的回调
             int ret = 0;
             if ((mTrackingEdge & EDGE_BOTTOM) != 0) {
                 ret = Math.min(0, Math.max(top, -child.getHeight()));
@@ -629,7 +563,7 @@ public class DragBackLayout extends FrameLayout {
         public void onViewDragStateChanged(int state) {
             super.onViewDragStateChanged(state);
             if (mListeners != null && !mListeners.isEmpty()) {
-                for (DragListener listener : mListeners) {
+                for (DragBackListener listener : mListeners) {
                     listener.onScrollStateChange(state, mScrollPercent);
                 }
             }

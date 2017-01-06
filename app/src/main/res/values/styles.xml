@@ -9,7 +9,8 @@
     </style>
 
     <style name="DragBackLayout">
-        <item name="edge_size">50dp</item>
+        <!--边界监听距离, 内部滑动, 触发后退关闭功能-->
+        <item name="edge_size">15dp</item>
         <item name="shadow_left">@drawable/shadow_left</item>
         <item name="shadow_right">@drawable/shadow_right</item>
         <item name="shadow_bottom">@drawable/shadow_bottom</item>

@@ -8,10 +8,11 @@
             <enum name="bottom" value="2"/>
             <enum name="all" value="3"/>
         </attr>
+        <!--reference表示引用ID-->
         <attr name="shadow_left" format="reference"/>
         <attr name="shadow_right" format="reference"/>
         <attr name="shadow_bottom" format="reference"/>
-        <attr name="DragBackLayoutStyle" format="reference"/>
     </declare-styleable>
-
+    <!--用于构造器创建样式-->
+    <attr name="DragBackLayoutStyle" format="reference"/>
 </resources>
